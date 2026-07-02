@@ -40,6 +40,7 @@ public class GradingService {
         // 3. 组装响应
         GradeResponse response = new GradeResponse();
         response.setMarkedImageBase64(Base64.getEncoder().encodeToString(markedImage));
+        response.setOverallComment(gradingResult.getOverallComment());
 
         // 取第一题的结果作为整体摘要（也可以根据需要汇总所有题目）
         if (gradingResult.getQuestions() != null && !gradingResult.getQuestions().isEmpty()) {

@@ -5,6 +5,7 @@ import java.util.List;
 
 @Data
 public class UnifiedGradingResult {
+    private String overallComment;  // 整体评价
     private List<QuestionResult> questions;
 
     @Data

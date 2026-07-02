@@ -8,4 +8,5 @@ public class GradeResponse {
     private String result;               // "正确" 或 "错误"
     private String explanation;          // 解析过程
     private String errorAnalysis;        // 错因分析（仅错误时有值）
+    private String overallComment;       // 整体评价
 }
