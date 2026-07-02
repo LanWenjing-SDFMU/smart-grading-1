@@ -34,7 +34,7 @@ public class ImageMarkService {
         int origHeight = original.getHeight();
 
         // ---- 1. 计算大画布尺寸和偏移量 ----
-        double marginRatio = 0.2; // 左右各20%空白
+        double marginRatio = 0.35; // 左右各35%空白
         int marginX = (int)(origWidth * marginRatio);
         int marginY = 10; // 上边距保留少量，仅用于美观
         int canvasWidth = origWidth + 2 * marginX;
@@ -175,14 +175,34 @@ public class ImageMarkService {
     // 根据左右空白宽度动态调整最大框宽
     int maxWidth = Math.min(marginX - 30, 380);
     maxWidth = Math.max(maxWidth, 150);
-    List<String> lines = wrapText(explanation, fm, maxWidth);
     int lineHeight = fm.getHeight() + 2;
-    int textHeight = lines.size() * lineHeight;
+
+    // 1. 拆分【解析】和【错因】
+    String parsePart = explanation;
+    String errorPart = "";
+    if (explanation.contains("【错因】")) {
+        int idx = explanation.indexOf("【错因】");
+        parsePart = explanation.substring(0, idx).trim();
+        errorPart = "【错因】" + explanation.substring(idx + "【错因】".length()).trim();
+    }
+
+    // 2. 分别换行
+    List<String> parseLines = wrapText(parsePart, fm, maxWidth);
+    List<String> errorLines = wrapText(errorPart, fm, maxWidth);
+
+    // 3. 合并为最终行列表（所有绘制的行）
+    List<String> allLines = new ArrayList<>(parseLines);
+    if (!errorLines.isEmpty()) {
+        allLines.addAll(errorLines);
+    }
+
+    // 4. 用 allLines 计算尺寸
     int textWidth = 0;
-    for (String line : lines) {
+    for (String line : allLines) {
         int w = fm.stringWidth(line);
         if (w > textWidth) textWidth = w;
     }
+    int textHeight = allLines.size() * lineHeight;
     int paddingText = 4;
     int extraPadding = 8;
     int extraVertical = 4;
@@ -213,7 +233,7 @@ public class ImageMarkService {
     if (distRight >= distLeft) {
         directionOrder = Arrays.asList("right", "left");
     } else {
-        directionOrder = Arrays.asList("left", "right");
+        directionOrder = Arrays.asList("dleft", "right");
     }
 
     for (String dir : directionOrder) {
@@ -358,42 +378,17 @@ public class ImageMarkService {
     g.setColor(Color.RED);
     g.drawRect(chosenRect.x, chosenRect.y, chosenRect.width, chosenRect.height);
 
-    // ---- 拆分【解析】和【错因】 ----
-    String explanationText = explanation;
-    String parsePart = "";
-    String errorPart = "";
-    if (explanationText.contains("【错因】")) {
-        int idx = explanationText.indexOf("【错因】");
-        parsePart = explanationText.substring(0, idx).trim();
-        errorPart = "【错因】" + explanationText.substring(idx + "【错因】".length()).trim();
-    } else {
-        parsePart = explanationText.trim();
-    }
-
-    // 分别对两部分进行换行
+    // 绘制文字（绿色为解析部分，红色为错因部分）
     int drawX = chosenRect.x + paddingText;
     int drawY = chosenRect.y + paddingText + fm.getAscent();
-
-    // 绘制解析部分（绿色）
-    if (!parsePart.isEmpty()) {
-        g.setColor(new Color(34, 197, 94)); // 绿色
-        List<String> parseLines = wrapText(parsePart, fm, maxWidth);
-        for (String line : parseLines) {
-            g.drawString(line, drawX, drawY);
-            drawY += lineHeight;
+    boolean isErrorPart = false;
+    for (String line : allLines) {
+        if (line.startsWith("【错因】")) {
+            isErrorPart = true;
         }
-    }
-
-    // 绘制错因部分（红色），如果有
-    if (!errorPart.isEmpty()) {
-        // 换行增加间距
-        drawY += 4;
-        g.setColor(new Color(220, 38, 38)); // 红色
-        List<String> errorLines = wrapText(errorPart, fm, maxWidth);
-        for (String line : errorLines) {
-            g.drawString(line, drawX, drawY);
-            drawY += lineHeight;
-        }
+        g.setColor(isErrorPart ? new Color(220, 38, 38) : new Color(34, 197, 94));
+        g.drawString(line, drawX, drawY);
+        drawY += lineHeight;
     }
 
     Point2D[] pts = closestPoints(bounds, chosenRect);
