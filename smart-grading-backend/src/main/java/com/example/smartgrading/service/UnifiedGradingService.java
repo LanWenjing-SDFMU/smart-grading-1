@@ -11,7 +11,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.util.*;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -23,37 +28,65 @@ public class UnifiedGradingService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public UnifiedGradingResult gradePaperWithLocation(MultipartFile file, String standardAnswer) throws Exception {
-        byte[] bytes = file.getBytes();
+        // 读取并压缩图片
+        BufferedImage original = ImageIO.read(file.getInputStream());
+        int maxSize = 1200; // 可调，建议 1000~1500
+        int w = original.getWidth();
+        int h = original.getHeight();
+        if (w > maxSize || h > maxSize) {
+            double ratio = Math.min((double) maxSize / w, (double) maxSize / h);
+            int newW = (int) (w * ratio);
+            int newH = (int) (h * ratio);
+            BufferedImage resized = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = resized.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.drawImage(original, 0, 0, newW, newH, null);
+            g2d.dispose();
+            original = resized;
+        }
+        // 转字节数组
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(original, "png", baos);
+        byte[] bytes = baos.toByteArray();
+        original.flush(); // 释放原图内存
+        baos.close();     // 非必须，但习惯
         String base64 = Base64.getEncoder().encodeToString(bytes);
         String dataUrl = "data:image/png;base64," + base64;
 
         String prompt = String.format(
                 "你是一位严谨的试卷批改老师。请分析这张试卷图片，完成以下任务：\n\n" +
-                        "1. 识别出学生所有手写答案的位置，用边界框标出每个答案区域（坐标请返回像素值）。\n" +
-                        "2. 识别每个答案区域内的手写文字内容。\n" +
-                        "3. 将识别出的学生答案与标准答案进行比对。标准答案如下（每道题按顺序对应）：\n%s\n\n" +
-                        "4. 对每个答案判断对错。\n" +
-                        "   - 如果**正确**：请将 result 设为 \"正确\"，并将 explanation 和 errorAnalysis 字段设为空字符串 \"\"。\n" +
-                        "   - 如果**错误**：请将 result 设为 \"错误\"，并在 explanation 字段中给出错因分析，格式必须为 \"【解析】...\"，内容尽量简短扼要，只写错因（例如：\"【解析】计算错误，少加了进位\"），errorAnalysis 字段留空即可（可忽略）。\n" +
-                        "5. 给出整体评价，格式为 \"【评价】...\"，内容包括整体情况、薄弱知识点、改进建议等，精简扼要。\n\n" +
-                        "请严格按照以下JSON格式返回结果，不要输出任何其他内容：\n" +
-                        "{\n" +
-                        "  \"overallComment\": \"整体评价，格式为【评价】...，内容包括整体情况、薄弱知识点、改进建议等，精简扼要。\",\n" +
-                        "  \"questions\": [\n" +
-                        "    {\n" +
-                        "      \"studentAnswer\": \"识别出的学生手写答案文字\",\n" +
-                        "      \"result\": \"正确\" 或 \"错误\",\n" +
-                        "      \"explanation\": \"正确时为空，错误时为【解析】...\",\n" +
-                        "      \"errorAnalysis\": \"（始终为空字符串）\",\n" +
-                        "      \"bbox\": {\n" +
-                        "        \"x\": 左上角x坐标,\n" +
-                        "        \"y\": 左上角y坐标,\n" +
-                        "        \"width\": 宽度,\n" +
-                        "        \"height\": 高度\n" +
-                        "      }\n" +
-                        "    }\n" +
-                        "  ]\n" +
-                        "}",
+                "1. 识别出学生所有手写答案的位置，用边界框标出每个答案区域（坐标请返回像素值）。\n" +
+                "2. 识别每个答案区域内的手写文字内容。\n" +
+                "3. 将识别出的学生答案与标准答案进行比对。标准答案如下（每道题按顺序对应）：\n%s\n\n" +
+                "4. 对每个答案判断对错。\n" +
+                "   - 如果**正确**：请将 result 设为 \"正确\"，explanation 字段仅包含 \"【解析】此题目的答案解析。\"（绿色部分），不包含错因。\n" +
+                "   - 如果**错误**：请将 result 设为 \"错误\"，explanation 字段必须同时包含 \"【解析】此题目的答案解析。\" 和 \"【错因】学生这道题的错因。\" 两部分，且【错因】放在最后。\n" +
+                "   注意：explanation 中不要包含其他多余文字，格式务必为 \"【解析】...【错因】...\"（错误时）或 \"【解析】...\"（正确时）。\n" +
+                "5. 给出整体评价，格式必须严格为以下四行（每行以方括号标签开头），标签后直接跟内容，**不要添加\"包括\"、\"为\"等多余文字**：\n" +
+                "   练习总结：\n" +
+                "   【练习情况】...\n" +
+                "   【错题类型】...\n" +
+                "   【薄弱模块】...\n" +
+                "   【改进方法】...\n" +
+                "   请确保整体评价严格按此格式返回，每项内容简洁扼要，不加任何前缀。\n\n" +
+                "请严格按照以下JSON格式返回结果，不要输出任何其他内容：\n" +
+                "{\n" +
+                "  \"overallComment\": \"整体评价，必须包含【练习情况】【错题类型】【薄弱模块】【改进方法】四个标签，格式如上述要求\",\n" +
+                "  \"questions\": [\n" +
+                "    {\n" +
+                "      \"studentAnswer\": \"识别出的学生手写答案文字\",\n" +
+                "      \"result\": \"正确\" 或 \"错误\",\n" +
+                "      \"explanation\": \"正确时为【解析】...，错误时为【解析】...【错因】...\",\n" +
+                "      \"errorAnalysis\": \"（始终为空字符串）\",\n" +
+                "      \"bbox\": {\n" +
+                "        \"x\": 左上角x坐标,\n" +
+                "        \"y\": 左上角y坐标,\n" +
+                "        \"width\": 宽度,\n" +
+                "        \"height\": 高度\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}",
                 standardAnswer
         );
 

@@ -34,7 +34,7 @@ public class ImageMarkService {
         int origHeight = original.getHeight();
 
         // ---- 1. 计算大画布尺寸和偏移量 ----
-        double marginRatio = 0.35; // 左右各35%空白
+        double marginRatio = 0.2; // 左右各20%空白
         int marginX = (int)(origWidth * marginRatio);
         int marginY = 10; // 上边距保留少量，仅用于美观
         int canvasWidth = origWidth + 2 * marginX;
@@ -172,7 +172,8 @@ public class ImageMarkService {
     g.setFont(font);
     FontMetrics fm = g.getFontMetrics();
 
-    int maxWidth = Math.min((int)(imgWidth * 0.3), 400);
+    // 根据左右空白宽度动态调整最大框宽
+    int maxWidth = Math.min(marginX - 30, 380);
     maxWidth = Math.max(maxWidth, 150);
     List<String> lines = wrapText(explanation, fm, maxWidth);
     int lineHeight = fm.getHeight() + 2;
@@ -183,8 +184,10 @@ public class ImageMarkService {
         if (w > textWidth) textWidth = w;
     }
     int paddingText = 4;
-    int totalWidth = textWidth + 2 * paddingText;
-    int totalHeight = textHeight + 2 * paddingText;
+    int extraPadding = 8;
+    int extraVertical = 4;
+    int totalWidth = textWidth + 2 * paddingText + extraPadding;
+    int totalHeight = textHeight + 2 * paddingText + extraVertical;
 
     List<Rectangle> allObstacles = new ArrayList<>(obstacles);
     allObstacles.addAll(usedRects);
@@ -349,19 +352,48 @@ public class ImageMarkService {
         }
     }
 
-    // ----- 绘制解析框和连线（不变）-----
-    int drawX = chosenRect.x + paddingText;
-    int drawY = chosenRect.y + paddingText + fm.getAscent();
-
+    // ----- 绘制解析框背景（半透明）和文字 -----
     g.setColor(new Color(255, 255, 255, 220));
     g.fillRect(chosenRect.x, chosenRect.y, chosenRect.width, chosenRect.height);
     g.setColor(Color.RED);
     g.drawRect(chosenRect.x, chosenRect.y, chosenRect.width, chosenRect.height);
 
-    g.setColor(Color.RED);
-    for (String line : lines) {
-        g.drawString(line, drawX, drawY);
-        drawY += lineHeight;
+    // ---- 拆分【解析】和【错因】 ----
+    String explanationText = explanation;
+    String parsePart = "";
+    String errorPart = "";
+    if (explanationText.contains("【错因】")) {
+        int idx = explanationText.indexOf("【错因】");
+        parsePart = explanationText.substring(0, idx).trim();
+        errorPart = "【错因】" + explanationText.substring(idx + "【错因】".length()).trim();
+    } else {
+        parsePart = explanationText.trim();
+    }
+
+    // 分别对两部分进行换行
+    int drawX = chosenRect.x + paddingText;
+    int drawY = chosenRect.y + paddingText + fm.getAscent();
+
+    // 绘制解析部分（绿色）
+    if (!parsePart.isEmpty()) {
+        g.setColor(new Color(34, 197, 94)); // 绿色
+        List<String> parseLines = wrapText(parsePart, fm, maxWidth);
+        for (String line : parseLines) {
+            g.drawString(line, drawX, drawY);
+            drawY += lineHeight;
+        }
+    }
+
+    // 绘制错因部分（红色），如果有
+    if (!errorPart.isEmpty()) {
+        // 换行增加间距
+        drawY += 4;
+        g.setColor(new Color(220, 38, 38)); // 红色
+        List<String> errorLines = wrapText(errorPart, fm, maxWidth);
+        for (String line : errorLines) {
+            g.drawString(line, drawX, drawY);
+            drawY += lineHeight;
+        }
     }
 
     Point2D[] pts = closestPoints(bounds, chosenRect);
@@ -601,6 +633,10 @@ public class ImageMarkService {
      */
     private void drawOverallComment(Graphics2D g, String comment, int canvasWidth, int canvasHeight, int origY, int origHeight) {
         if (comment == null || comment.isEmpty()) return;
+
+        // 清洗评价文本，去除多余前缀
+        comment = comment.replaceAll("【错题类型】[：:]*\\s*错题类型包括[：:]\\s*", "【错题类型】");
+        comment = comment.replaceAll("【薄弱模块】[：:]*\\s*薄弱模块为[：:]\\s*", "【薄弱模块】");
 
         // 绘制评价区域背景
         int commentY = origY + origHeight + 20;
