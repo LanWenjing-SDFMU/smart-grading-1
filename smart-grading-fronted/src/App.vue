@@ -1,169 +1,81 @@
 <template>
-  <div class="app-container">
-    <header class="app-header">
-      <div class="header-brand">
-        <span class="brand-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <div class="app-layout">
+    <!-- 顶栏 -->
+    <header class="app-topbar">
+      <div class="topbar-brand">
+        <span class="brand-logo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
           </svg>
         </span>
-        <h1>智能批阅系统</h1>
+        <h1 class="brand-title">智能批阅系统</h1>
       </div>
-      <p class="header-subtitle">AI-powered grading platform</p>
+      <div class="topbar-meta">
+        <span class="meta-text">AI-powered grading platform</span>
+      </div>
     </header>
 
-    <main class="main-content">
-      <section class="input-section">
-        <div class="form-group">
-          <label class="form-label">试卷图片</label>
-          <div class="file-upload-wrapper">
-            <input type="file" @change="handleFileChange" accept="image/*" id="fileInput" class="file-input" />
-            <label for="fileInput" class="file-upload-btn">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              {{ form.file ? form.file.name : '选择图片文件' }}
-            </label>
+    <div class="app-body">
+      <!-- 侧边栏 -->
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav">
+          <div
+            v-for="item in menuItems"
+            :key="item.key"
+            class="nav-item"
+            :class="{ active: activeMenu === item.key }"
+            @click="activeMenu = item.key"
+          >
+            <span class="nav-icon" v-html="item.icon"></span>
+            <span class="nav-label">{{ item.label }}</span>
+            <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+          </div>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="footer-info">
+            <div class="footer-dot"></div>
+            <span class="footer-text">系统在线</span>
           </div>
         </div>
+      </aside>
 
-        <div class="form-group">
-          <label class="form-label" for="standardAnswer">标准答案</label>
-          <textarea
-            id="standardAnswer"
-            v-model="form.standardAnswer"
-            placeholder="请输入标准答案..."
-            rows="3"
-            class="form-textarea"
-          ></textarea>
-        </div>
-
-        <button @click="submit" :disabled="loading" class="btn-primary">
-          <svg v-if="!loading" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          <span v-if="loading" class="spinner"></span>
-          {{ loading ? '批阅中...' : '开始批阅' }}
-        </button>
-      </section>
-
-      <section v-if="result" class="result-section">
-        <div class="result-header">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; color: #059669;">
-            <polyline points="9 11 12 14 22 4"></polyline>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-          </svg>
-          <h2>批阅结果</h2>
-        </div>
-
-        <div class="result-body">
-          <div class="image-section">
-            <img :src="'data:image/png;base64,' + result.markedImageBase64" class="result-image" />
-            <button @click="downloadImage" class="btn-download">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              下载批阅图片
-            </button>
-          </div>
-
-          <div v-if="result.overallComment" class="comment-section">
-            <label class="comment-label">整体评价</label>
-            <textarea
-              readonly
-              :value="result.overallComment"
-              rows="3"
-              class="comment-textarea"
-              @click="selectAllText"
-              ref="commentTextarea"
-            ></textarea>
-            <p class="comment-hint">点击文本框自动全选，方便复制</p>
-          </div>
-        </div>
-      </section>
-    </main>
+      <!-- 内容区 -->
+      <main class="app-content">
+        <PaperGrading v-if="activeMenu === 'paper'" />
+        <EssayGrading v-else-if="activeMenu === 'essay'" />
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import axios from 'axios'
+import { ref } from 'vue'
+import PaperGrading from './components/PaperGrading.vue'
+import EssayGrading from './components/EssayGrading.vue'
 
-const form = reactive({
-  standardAnswer: '',
-  file: null
-})
+const activeMenu = ref('paper')
 
-const loading = ref(false)
-const result = ref(null)
-const commentTextarea = ref(null)
-
-const handleFileChange = (e) => {
-  const file = e.target.files[0]
-  if (file) {
-    form.file = file
+const menuItems = [
+  {
+    key: 'paper',
+    label: '试卷批阅',
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg>'
+  },
+  {
+    key: 'essay',
+    label: '作文批阅',
+    badge: '待开放',
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>'
   }
-}
-
-const submit = async () => {
-  result.value = null
-
-  if (!form.file) {
-    alert('请选择图片')
-    return
-  }
-  if (!form.standardAnswer.trim()) {
-    alert('请填写标准答案')
-    return
-  }
-
-  loading.value = true
-
-  const formData = new FormData()
-  formData.append('file', form.file)
-  formData.append('standardAnswer', form.standardAnswer.trim())
-
-  try {
-    const res = await axios.post('http://localhost:8080/api/grading/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    console.log('响应数据:', res.data)
-    if (res.data) {
-      result.value = res.data
-    }
-  } catch (error) {
-    console.error('请求失败:', error)
-    alert('批阅失败：' + (error.response?.data?.message || error.message))
-  } finally {
-    loading.value = false
-  }
-}
-
-const downloadImage = () => {
-  if (!result.value || !result.value.markedImageBase64) return
-  const link = document.createElement('a')
-  link.href = 'data:image/png;base64,' + result.value.markedImageBase64
-  link.download = '批阅结果.png'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
-
-const selectAllText = (event) => {
-  event.target.select()
-}
+]
 </script>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
 }
 
 body {
@@ -171,293 +83,199 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: #1f2937;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-.app-container {
-  min-height: 100vh;
+/* 整体布局 */
+.app-layout {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 40px 20px 80px;
+  min-height: 100vh;
 }
 
-.app-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.header-brand {
+/* 顶栏 */
+.app-topbar {
+  height: 64px;
+  background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
+  color: #fff;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  justify-content: space-between;
+  padding: 0 28px;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
 }
 
-.brand-icon {
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
   display: inline-flex;
-  color: #2563eb;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
 }
 
-.app-header h1 {
-  font-size: 28px;
+.brand-title {
+  font-size: 20px;
   font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.5px;
+  color: #fff;
+  letter-spacing: 1px;
 }
 
-.header-subtitle {
-  margin-top: 6px;
-  font-size: 14px;
-  color: #6b7280;
-  letter-spacing: 0.3px;
+.topbar-meta {
+  display: flex;
+  align-items: center;
 }
 
-.main-content {
-  width: 100%;
-  max-width: 720px;
+.meta-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.5px;
 }
 
-.input-section {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 28px 32px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e5e7eb;
+/* 主体区域 */
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
-.form-group {
-  margin-bottom: 20px;
+/* 侧边栏 */
+.app-sidebar {
+  width: 220px;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
 }
 
-.form-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 8px;
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 12px;
 }
 
-.file-upload-wrapper {
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s;
+  margin-bottom: 4px;
   position: relative;
 }
 
-.file-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
-.file-upload-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 20px;
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  background: #f9fafb;
-  color: #4b5563;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-upload-btn:hover {
-  border-color: #2563eb;
-  background: #eff6ff;
+.nav-item:hover {
+  background: #f3f4f6;
   color: #2563eb;
 }
 
-.form-textarea {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #1f2937;
-  background: #ffffff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  resize: vertical;
-  font-family: inherit;
+.nav-item.active {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #2563eb;
+  font-weight: 600;
 }
 
-.form-textarea:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: #2563eb;
+  border-radius: 0 3px 3px 0;
 }
 
-.form-textarea::placeholder {
-  color: #9ca3af;
-}
-
-.btn-primary {
+.nav-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  padding: 12px 24px;
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
+  flex-shrink: 0;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+.nav-label {
+  flex: 1;
 }
 
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.99);
+.nav-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 10px;
+  font-weight: 500;
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #f3f4f6;
 }
 
-.spinner {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  margin-right: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Result Section */
-.result-section {
-  margin-top: 28px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
-}
-
-.result-header {
+.footer-info {
   display: flex;
   align-items: center;
-  padding: 20px 28px 0;
+  gap: 8px;
 }
 
-.result-header h2 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #111827;
+.footer-dot {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
 }
 
-.result-body {
-  padding: 20px 28px 28px;
-}
-
-.image-section {
-  text-align: center;
-}
-
-.result-image {
-  max-width: 100%;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.btn-download {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 14px;
-  padding: 10px 20px;
-  background: #059669;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.btn-download:hover {
-  background: #047857;
-}
-
-.comment-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.comment-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 8px;
-}
-
-.comment-textarea {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #1f2937;
-  background: #ffffff;
-  resize: vertical;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.comment-textarea:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.comment-hint {
-  margin-top: 6px;
+.footer-text {
   font-size: 12px;
   color: #9ca3af;
 }
 
-@media (max-width: 600px) {
-  .app-container {
-    padding: 20px 16px 60px;
-  }
+/* 内容区 */
+.app-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
 
-  .input-section,
-  .result-body {
-    padding-left: 20px;
-    padding-right: 20px;
+/* 响应式 */
+@media (max-width: 768px) {
+  .app-sidebar {
+    width: 64px;
   }
-
-  .result-header {
-    padding-left: 20px;
-    padding-right: 20px;
+  .nav-label, .nav-badge, .sidebar-footer, .meta-text {
+    display: none;
   }
-
-  .app-header h1 {
-    font-size: 24px;
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  .app-content {
+    padding: 16px;
+  }
+  .brand-title {
+    font-size: 17px;
   }
 }
 </style>
